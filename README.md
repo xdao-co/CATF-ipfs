@@ -40,6 +40,12 @@ Or with JSON config in CATF (example):
 
 - `xdao-cascli put --cas-config ./cas.json --backend grpc ./file`
 
+## Building from source
+
+- Build the default daemon: `make build`
+- Build a specific cmd under `./cmd`: `make build-cmd CMD=xdao-casgrpcd-ipfs`
+- Clean build outputs: `make clean`
+
 ## Release artifacts
 
 This repository’s GitHub Releases publish prebuilt archives for:
@@ -48,3 +54,18 @@ This repository’s GitHub Releases publish prebuilt archives for:
 - macOS Apple Silicon (`darwin/arm64`)
 
 Each release includes `.tar.gz` archives and `.sha256` checksum files.
+
+## Cutting a release
+
+Releases are produced by GitHub Actions from a git tag.
+
+1) Choose a version (tags must match `v*`, e.g. `v1.2.3`).
+
+2) Create and push the tag:
+
+- `git tag -a v1.2.3 -m "v1.2.3"`
+- `git push origin v1.2.3`
+
+That tag push triggers the `release` workflow, which runs `go test ./...`, builds `linux/amd64` + `darwin/arm64`, and publishes a GitHub Release with the archives.
+
+Optional: if you need to re-run publishing, use Actions → `release` → “Run workflow” and enter an **existing tag** in the `tag` input.
