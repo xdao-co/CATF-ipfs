@@ -5,7 +5,7 @@ go 1.22.0
 require (
 	github.com/ipfs/go-cid v0.4.1
 	google.golang.org/grpc v1.67.0
-	xdao.co/catf v0.0.0
+	xdao.co/catf v1.2.0
 )
 
 require (
