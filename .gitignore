@@ -2,6 +2,10 @@ bin/*
 testdata/*
 *.zip
 
+# Local build outputs
+dist/
+xdao-casgrpcd-ipfs
+
 # Created by https://www.toptal.com/developers/gitignore/api/go
 # Edit at https://www.toptal.com/developers/gitignore?templates=go
 

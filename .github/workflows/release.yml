@@ -1,0 +1,88 @@
+name: release
+
+on:
+    push:
+        tags:
+            - "v*"
+
+permissions:
+    contents: write
+
+jobs:
+    build:
+        name: build (${{ matrix.goos }}/${{ matrix.goarch }})
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - goos: linux
+                      goarch: amd64
+                    - goos: darwin
+                      goarch: arm64
+
+        steps:
+            - name: Checkout CATF-ipfs
+              uses: actions/checkout@v4
+
+            # CATF-ipfs depends on xdao.co/catf, but in CI we vendor it by checking out CATF
+            # and applying a temporary go.mod replace. This avoids relying on xdao.co module fetch.
+            - name: Checkout CATF
+              uses: actions/checkout@v4
+              with:
+                  repository: xdao-co/CATF
+                  path: CATF
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: "1.22.x"
+
+            - name: Wire local CATF module
+              run: |
+                  go mod edit -replace xdao.co/catf=./CATF/src
+                  go mod download
+
+            - name: Build
+              env:
+                  GOOS: ${{ matrix.goos }}
+                  GOARCH: ${{ matrix.goarch }}
+              run: |
+                  set -euo pipefail
+                  BIN=xdao-casgrpcd-ipfs
+                  OUTDIR=dist
+                  mkdir -p "$OUTDIR"
+
+                  OUT_BASENAME="${BIN}_${GOOS}_${GOARCH}"
+                  OUT_PATH="$OUTDIR/$OUT_BASENAME"
+
+                  go build -trimpath -ldflags "-s -w" -o "$OUT_PATH" ./cmd/xdao-casgrpcd-ipfs
+
+                  tar -czf "$OUTDIR/${OUT_BASENAME}.tar.gz" -C "$OUTDIR" "$OUT_BASENAME"
+                  shasum -a 256 "$OUTDIR/${OUT_BASENAME}.tar.gz" > "$OUTDIR/${OUT_BASENAME}.tar.gz.sha256"
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
+                  path: dist/*.tar.gz*
+
+    release:
+        name: GitHub Release
+        needs: build
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Download artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: dist-*
+                  merge-multiple: true
+                  path: dist
+
+            - name: Publish release
+              uses: softprops/action-gh-release@v2
+              with:
+                  files: |
+                      dist/*.tar.gz
+                      dist/*.tar.gz.sha256
