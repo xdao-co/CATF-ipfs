@@ -1,6 +1,6 @@
 name: release
 
-on:
+"on":
     push:
         tags:
             - "v*"
@@ -10,13 +10,48 @@ on:
                 description: "Existing git tag to release (e.g. v1.2.3)"
                 required: true
                 type: string
+
 permissions:
     contents: write
 
+env:
+    GO_VERSION: "1.22.x"
+
 jobs:
+    test:
+        name: test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout CATF-ipfs
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Checkout CATF
+              uses: actions/checkout@v4
+              with:
+                  repository: xdao-co/CATF
+                  path: CATF
+                  fetch-depth: 0
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: ${{ env.GO_VERSION }}
+
+            - name: Wire local CATF module
+              run: |
+                  go mod edit -replace xdao.co/catf=./CATF/src
+                  go mod download
+
+            - name: Run unit tests
+              run: |
+                  go test ./...
+
     build:
         name: build (${{ matrix.goos }}/${{ matrix.goarch }})
         runs-on: ubuntu-latest
+        needs: test
         strategy:
             fail-fast: false
             matrix:
@@ -29,19 +64,20 @@ jobs:
         steps:
             - name: Checkout CATF-ipfs
               uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-            # CATF-ipfs depends on xdao.co/catf, but in CI we vendor it by checking out CATF
-            # and applying a temporary go.mod replace. This avoids relying on xdao.co module fetch.
             - name: Checkout CATF
               uses: actions/checkout@v4
               with:
                   repository: xdao-co/CATF
                   path: CATF
+                  fetch-depth: 0
 
             - name: Set up Go
               uses: actions/setup-go@v5
               with:
-                  go-version: "1.22.x"
+                  go-version: ${{ env.GO_VERSION }}
 
             - name: Wire local CATF module
               run: |
@@ -76,8 +112,13 @@ jobs:
         name: GitHub Release
         needs: build
         runs-on: ubuntu-latest
-
+        if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
         steps:
+            - name: Checkout (tags)
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
             - name: Download artifacts
               uses: actions/download-artifact@v4
               with:
@@ -88,6 +129,9 @@ jobs:
             - name: Publish release
               uses: softprops/action-gh-release@v2
               with:
+                  tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+                  name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+                  generate_release_notes: true
                   files: |
                       dist/*.tar.gz
                       dist/*.tar.gz.sha256
